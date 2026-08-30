@@ -132,7 +132,7 @@
   <div class="brand">Boringifier</div>
   <div class="controls">
     <label class="keywrap" for="key">API key
-      <input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-...">
+      <input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="AIza...">
     </label>
     <div class="switchwrap">
       <span id="lblBait" class="sw-label on">BAIT</span>
@@ -319,11 +319,11 @@ const TITLES = [
   "Kimse Söylemiyor Ama Bu Alışkanlık Sizi Bitiriyor"
 ];
 
-/* Model id. VERIFY THIS at https://docs.claude.com/en/docs/about-claude/models
-   before the demo -- a stale id returns HTTP 404. A Haiku-class model is
-   faster and cheaper for this task and the quality difference is negligible. */
-const MODEL = "claude-haiku-4-5-20251001";
-const API_URL = "https://api.anthropic.com/v1/messages";
+/* Gemini. Copy the exact model id from the picker in Google AI Studio
+   (aistudio.google.com) -- a wrong id returns HTTP 404 saying so.
+   Flash is the fast, cheap tier and is plenty for rewriting short titles. */
+const MODEL = "gemini-3.1-pro-preview";
+const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/";
 
 /* ---------------------------------------------------------------- fake feed
    Channel names and view counts are decoration only. They are never counted,
@@ -361,19 +361,23 @@ function makeCard(title, own){
 }
 
 /* -------------------------------------------------------------- model calls */
-async function callModel(system, user, maxTokens, prefill){
-  const messages = [{ role: "user", content: user }];
-  if(prefill) messages.push({ role: "assistant", content: prefill });
-
-  const res = await fetch(API_URL, {
+async function callModel(system, user, maxTokens, wantJson){
+  const res = await fetch(API_URL + MODEL + ":generateContent", {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "x-api-key": state.apiKey,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true"
+      "x-goog-api-key": state.apiKey
     },
-    body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, system: system, messages: messages })
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: system }] },
+      contents: [{ role: "user", parts: [{ text: user }] }],
+      generationConfig: Object.assign(
+        { maxOutputTokens: maxTokens, temperature: 0.2 },
+        // Forces a JSON reply for the rewrite call. More reliable than asking
+        // for one in prose, and it replaces the assistant-prefill trick.
+        wantJson ? { responseMimeType: "application/json" } : {}
+      )
+    })
   });
 
   if(!res.ok){
@@ -382,9 +386,16 @@ async function callModel(system, user, maxTokens, prefill){
     try { const j = await res.json(); detail = (j && j.error && j.error.message) ? j.error.message : ""; } catch(e){}
     throw new Error("HTTP " + res.status + (detail ? ": " + detail.slice(0,200) : ""));
   }
+
   const data = await res.json();
-  const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
-  return (prefill || "") + text;
+  const cand = (data.candidates && data.candidates[0]) || null;
+  const parts = (cand && cand.content && cand.content.parts) || [];
+  const text = parts.map(p => p.text || "").join("");
+  if(!text){
+    const why = cand && cand.finishReason ? " (" + cand.finishReason + ")" : "";
+    throw new Error("the model returned an empty reply" + why);
+  }
+  return text;
 }
 
 function parseArray(text){
@@ -432,7 +443,7 @@ async function runBatch(originals, msgNode){
           PROMPT_DEBAIT,
           buildDebaitUser(originals, attempt > 0),
           Math.min(4000, 600 + 200 * originals.length),
-          "["
+          true
         );
         result = validate(parseArray(raw), originals.length);
         if(!result) lastErr = "the reply was not the expected JSON array";
@@ -579,7 +590,7 @@ async function runReflect(){
 
   setBusy(true);
   try{
-    const text = await callModel(PROMPT_REFLECT, payload, 400, "");
+    const text = await callModel(PROMPT_REFLECT, payload, 400, false);
     state.reflection = text.trim();
     hideMsg($("mirrormsg"));
   }catch(e){
