@@ -77,7 +77,17 @@ function processBatch() {
     if (response && response.results) {
       response.results.forEach((res, index) => {
         if (res && res.bait) {
-          updateBadge(batch[index].element, res);
+          const el = batch[index].element;
+          updateBadge(el, res);
+          if (res.boring) {
+            // Keep the original so nothing is destroyed — it stays one hover away.
+            if (!el.dataset.boringifierOriginal) {
+              el.dataset.boringifierOriginal = el.textContent.trim();
+            }
+            el.textContent = res.boring;
+            el.title = "Original: " + el.dataset.boringifierOriginal;
+            el.classList.add("boringifier-flat");
+          }
         } else {
           removeBadge(batch[index].element);
         }
