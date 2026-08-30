@@ -7,7 +7,7 @@ shows what the feed was doing.
 
 Open `index.html` in a browser. No build, no server, no dependencies.
 
-Paste an Anthropic API key into the header field and flip the switch from
+Paste a Google Gemini API key into the header field and flip the switch from
 BAIT to BORING. The twelve titles are rewritten in a single request.
 
 If your browser blocks the request from a `file://` origin, serve the folder
@@ -90,20 +90,35 @@ is never included in them.
 
 ## The key
 
+Get a free key at <https://aistudio.google.com> — API keys, Create API key. No
+card required on the free tier. It looks like `AIza...`.
+
 The key lives in one JavaScript variable for the lifetime of the page. It is
 not written to `localStorage`, not logged, not put in an error message, and not
-persisted anywhere. Reloading the page clears it.
+persisted anywhere. Reloading the page clears it. It is never committed: see
+`.gitignore`.
 
-Browser requests to the Anthropic API need three headers, all of which
-`callModel` sends:
+It is sent as a header rather than a query parameter, so it does not end up in
+URLs or server logs:
 
 ```
-x-api-key: <key>
-anthropic-version: 2023-06-01
-anthropic-dangerous-direct-browser-access: true
+x-goog-api-key: <key>
 ```
 
-Without the third one the request fails CORS.
+If the request fails with a CORS or origin error when opening the file
+directly, serve the folder instead — `python3 -m http.server 8000` — and open
+`http://localhost:8000`. A `file://` page has a null origin, which some APIs
+refuse.
+
+## Model
+
+Both calls go to the Gemini `generateContent` endpoint. `MODEL` is set near the
+top of the script; copy the exact id from the model picker in Google AI Studio.
+The rewrite call sets `responseMimeType: "application/json"` so the reply is
+JSON by construction rather than by request.
+
+The prompts were developed and iterated on Gemini, and the prototype calls
+Gemini — the model that was tested is the model that ships. See `prompt_log.md`.
 
 ## Design rules
 
