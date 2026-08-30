@@ -1,0 +1,714 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Boringifier</title>
+<style>
+  :root{
+    --ink:#111;
+    --quiet:#3f3f3f;
+    --meta:#5a5a5a;
+    --line:#d6d6d6;
+    --rule:#ececec;
+    --thumb:#dcdcdc;
+    --bg:#fff;
+    --bait:#b3261e;      /* the only colour in the whole app */
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* no transitions, no keyframes, anywhere. that is deliberate. */
+
+  header{
+    display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;
+    padding:16px 24px;border-bottom:1px solid var(--line);
+  }
+  .brand{font-size:19px;font-weight:700;letter-spacing:-0.01em}
+  .controls{display:flex;align-items:center;gap:28px;flex-wrap:wrap}
+  .keywrap{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--meta)}
+  #key{
+    font-family:inherit;font-size:15px;line-height:1.2;padding:6px 8px;width:230px;
+    border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:0;
+  }
+  #key:focus{outline:2px solid var(--ink);outline-offset:-1px}
+
+  .switchwrap{display:flex;align-items:center;gap:10px}
+  .sw-label{font-size:15px;letter-spacing:.06em;color:#9a9a9a}
+  .sw-label.on{color:var(--ink);font-weight:600}
+  #toggle{
+    width:52px;height:26px;padding:2px;border:1px solid var(--ink);background:#fff;
+    border-radius:0;cursor:pointer;display:block;
+  }
+  #toggle .knob{display:block;width:22px;height:20px;background:var(--ink)}
+  #toggle[aria-checked="true"] .knob{margin-left:24px}
+  #toggle:disabled{border-color:#aaa;cursor:default}
+  #toggle:disabled .knob{background:#aaa}
+
+  .tabs{display:flex;gap:0;border-bottom:1px solid var(--line);padding:0 24px}
+  .tab{
+    font-family:inherit;font-size:15px;line-height:1;padding:12px 16px;background:none;border:0;border-bottom:2px solid transparent;
+    color:var(--meta);cursor:pointer;letter-spacing:.02em;
+  }
+  .tab.active{color:var(--ink);font-weight:600;border-bottom-color:var(--ink)}
+
+  main{padding:24px;max-width:1240px}
+
+  .grid{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));
+    gap:26px 20px;
+  }
+  .grid.busy .title{opacity:.4}
+  .thumb{width:100%;aspect-ratio:16/9;background:var(--thumb)}
+  .card .title{
+    margin:10px 0 4px;font-size:16px;line-height:1.3;
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+  }
+  .title.t-bait{font-weight:600;color:var(--ink)}
+  .title.t-boring{font-weight:400;color:var(--quiet)}
+  .title[data-orig]{cursor:default}
+  .title[data-orig]:focus{outline:1px solid var(--ink);outline-offset:2px}
+  .meta{margin:0;font-size:15px;color:var(--meta)}
+  .cardbait{margin:4px 0 0;font-size:15px;color:var(--meta)}
+  .cardbait.hot{color:var(--bait)}
+  .tag-own{font-size:15px;color:var(--meta)}
+
+  .own{margin-top:40px;padding-top:24px;border-top:1px solid var(--line);max-width:680px}
+  .own label{display:block;font-size:15px;margin-bottom:8px}
+  #own{
+    width:100%;font-family:inherit;font-size:15px;line-height:1.4;padding:10px;border:1px solid var(--line);
+    background:#fff;color:var(--ink);border-radius:0;resize:vertical;
+  }
+  #own:focus{outline:2px solid var(--ink);outline-offset:-1px}
+  .btn{
+    margin-top:10px;font-family:inherit;font-size:15px;line-height:1;padding:10px 16px;
+    border:1px solid var(--ink);background:#fff;color:var(--ink);border-radius:0;cursor:pointer;
+  }
+  .btn:disabled{border-color:#aaa;color:#aaa;cursor:default}
+
+  .msg{font-size:15px;color:var(--meta);margin:10px 0 0;max-width:680px}
+  #feedmsg{margin:0 0 16px}
+
+  /* mirror */
+  #panel-mirror{max-width:760px}
+  #panel-mirror h2{font-size:19px;margin:0 0 16px}
+  #panel-mirror h3{font-size:15px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--meta);margin:32px 0 12px}
+  .total{font-size:16px;margin:0}
+  .trow{display:grid;grid-template-columns:200px 1fr 44px;align-items:center;gap:14px;
+    padding:7px 0;border-bottom:1px solid var(--rule);font-size:15px}
+  .trow .lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .barwrap{height:6px;background:var(--rule)}
+  .bar{height:6px;background:var(--ink)}
+  .trow .n{text-align:right;color:var(--meta)}
+  .top{list-style:none;margin:0;padding:0}
+  .top li{padding:14px 0;border-bottom:1px solid var(--rule)}
+  .top .o{font-size:16px;font-weight:600;margin:0}
+  .top .b{font-size:16px;color:var(--quiet);margin:6px 0 0}
+  .top .m{font-size:15px;color:var(--meta);margin:6px 0 0}
+  .top .m .hot{color:var(--bait)}
+  .reflect{font-size:16px;line-height:1.55;margin:0 0 12px;white-space:pre-wrap;max-width:640px}
+  .reflect.busy{opacity:.4}
+  .empty{font-size:16px;color:var(--meta)}
+
+  /* tooltip */
+  #tip{
+    position:fixed;z-index:50;max-width:340px;padding:10px 12px;
+    background:#fff;border:1px solid var(--ink);font-size:15px;line-height:1.35;
+  }
+  #tip .o{color:var(--ink)}
+  #tip .m{margin-top:6px;color:var(--meta)}
+  #tip .m .hot{color:var(--bait)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">Boringifier</div>
+  <div class="controls">
+    <label class="keywrap" for="key">API key
+      <input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-...">
+    </label>
+    <div class="switchwrap">
+      <span id="lblBait" class="sw-label on">BAIT</span>
+      <button id="toggle" role="switch" aria-checked="false" aria-label="Bait or boring titles"><span class="knob"></span></button>
+      <span id="lblBoring" class="sw-label">BORING</span>
+    </div>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button class="tab active" role="tab" aria-selected="true" data-tab="feed">Feed</button>
+  <button class="tab" role="tab" aria-selected="false" data-tab="mirror">Mirror</button>
+</nav>
+
+<main>
+  <section id="panel-feed">
+    <p id="feedmsg" class="msg" hidden></p>
+    <div id="grid" class="grid"></div>
+    <section class="own">
+      <label for="own">Paste your own titles, one per line</label>
+      <textarea id="own" rows="5"></textarea>
+      <br>
+      <button id="runOwn" class="btn">Boringify these</button>
+      <p id="ownmsg" class="msg" hidden></p>
+    </section>
+  </section>
+
+  <section id="panel-mirror" hidden>
+    <h2>Mirror</h2>
+    <p id="mTotal" class="total"></p>
+    <div id="mBody">
+      <h3>Tactics</h3>
+      <div id="mTactics"></div>
+      <h3>Highest bait</h3>
+      <ol id="mTop" class="top"></ol>
+      <h3>Reflection</h3>
+      <p id="mReflect" class="reflect"></p>
+      <button id="runReflect" class="btn">Generate reflection</button>
+      <p id="mirrormsg" class="msg" hidden></p>
+    </div>
+  </section>
+</main>
+
+<div id="tip" hidden></div>
+
+<script>
+"use strict";
+
+/* ==========================================================================
+   1. PROMPT_DEBAIT  -- system prompt for the batch rewrite call.
+      Structured step-by-step + few-shot. Iteration log in prompt_log.md.
+   ========================================================================== */
+const PROMPT_DEBAIT = `You rewrite headlines to remove their psychological hooks.
+
+Every title you receive was engineered to make someone click before they
+decided to. Return the same information with the engineering removed, so a
+reader can tell in one second whether they actually want it.
+
+## The three operations
+
+1. CLOSE THE GAP. If a title withholds its own answer, put the answer in.
+   "You won't believe what he found in the attic" becomes "Man finds a 1943
+   penny in an attic." A rewrite that leaves the reader still wondering has
+   failed.
+
+2. FLATTEN THE REGISTER. Remove superlatives, intensifiers, ALL CAPS,
+   exclamation marks, emoji, second-person address, urgency and stakes.
+   Words like "insane", "shocking", "destroyed", "nobody is talking about
+   this" carry temperature, not information. Cut them.
+
+3. STATE THE SUBJECT PLAINLY. Lead with what the thing actually is. Prefer
+   the phrasing of a library catalogue entry to the phrasing of a headline.
+
+## Hard rules
+
+- Never invent facts. If the original does not reveal the answer, describe
+  what the content is about instead of guessing: "Video about an object
+  found in an attic." Guessing is worse than boring.
+- Never flatten a title carrying genuine health, safety, emergency or news
+  urgency. Real urgency is information, not manipulation. Return it
+  unchanged, word for word, with tactic "none" and bait 1.
+- Never be sarcastic, arch, knowing or funny. Irony is itself a hook. The
+  target register is neutral, not superior.
+- Never editorialise about the title, the creator, or clickbait itself.
+- Reply in the same language as the input. Turkish in, Turkish out.
+- Twelve words maximum. Sentence case.
+- If a title is already plain and informative, return it unchanged, word for
+  word, with a bait score of 1. Over-rewriting neutral titles is a failure
+  mode, not thoroughness.
+
+## When rules conflict
+
+The safety rule and the "return unchanged" rule both outrank the twelve-word
+limit. If preserving a genuine warning or an already-plain title requires
+more than twelve words, exceed the limit and keep the title intact.
+
+## Tactic
+
+Assign the single most dominant tactic. Use exactly one of these strings and
+never invent a new one:
+curiosity-gap | outrage | fear | superlative | false-urgency |
+parasocial | listicle | none
+
+## Bait score
+
+1 - plainly informative, nothing removed
+3 - mild emotional colouring
+5 - the title's entire function is to withhold or provoke
+
+## Examples
+
+in:  "I Spent 50 Hours Buried Alive 😱"
+out: {"boring":"Man stays in a buried box for 50 hours",
+      "tactic":"superlative","bait":5}
+
+in:  "Doctors HATE this one simple trick"
+out: {"boring":"Claims about an unspecified health technique",
+      "tactic":"curiosity-gap","bait":5}
+
+in:  "How to make sourdough starter from scratch"
+out: {"boring":"How to make sourdough starter from scratch",
+      "tactic":"none","bait":1}
+
+in:  "Bu videoyu izlemeden ev almayın!"
+out: {"boring":"Ev almadan önce dikkat edilecek noktalar",
+      "tactic":"fear","bait":4}`;
+
+/* ==========================================================================
+   2. PROMPT_REFLECT -- system prompt for the Mirror reflection call.
+      Zero-shot + constraint-based. Receives counts only, never titles.
+      This call receives ONLY the tally numbers, never the titles.
+   ========================================================================== */
+const PROMPT_REFLECT = `You write a short, neutral reflection on what a media feed was doing to a
+reader's attention.
+
+You receive a tally: how many titles were analysed, and how many used each
+manipulation tactic. You receive nothing about the person and you must not
+infer anything about them.
+
+Write three to four sentences that:
+- Describe what THE FEED did. Never describe what the reader did, feels,
+  wants, or should do.
+- Name the most common tactic and explain in one plain sentence how that
+  tactic works on attention.
+- End with one open question the reader can answer for themselves.
+
+Forbidden, without exception:
+- Any second-person judgement: "you spend too much time", "you should",
+  "try to reduce".
+- The words addiction, addicted, unhealthy, wasting, problem, disorder,
+  dependency.
+- Any estimate of time, harm or wellbeing that was not directly counted.
+  You have counts of titles and tactics and nothing else.
+- Any suggestion that the reader has a condition, or any statement framed
+  as clinical, medical or diagnostic.
+- Praise, reassurance or encouragement. This is a mirror, not a coach.
+
+Tone: calm, factual, slightly detached. Under 80 words. Reply in English.
+Return the sentences only, with no heading and no preamble.`;
+
+/* ==========================================================================
+   3. OUTPUT_CONTRACT -- appended to the user message of the rewrite call so
+      the reply is parseable no matter how PROMPT_DEBAIT is worded.
+      {{N}} is replaced with the number of titles in the batch.
+   ========================================================================== */
+const OUTPUT_CONTRACT = `Reply with a JSON array of exactly {{N}} objects and nothing else.
+Each object: {"index": <number, matching the title's number below>, "boring": <string, the rewritten title>, "tactic": <string, exactly one of: curiosity-gap, outrage, fear, superlative, false-urgency, parasocial, listicle, none>, "bait": <integer 1-5>}`;
+
+/* ==========================================================================
+   4. TITLES -- twelve placeholders. Replace with the real ones.
+   ========================================================================== */
+const TITLES = [
+  "This ONE Setting Is Draining Your Battery (Nobody Talks About It)",
+  "Telefonunuzu ASLA Böyle Şarj Etmeyin! Sonu Felaket",
+  "I Tried the 5AM Routine for 30 Days and It Broke Me",
+  "Uzmanlar Şokta: Sabahları Bunu Yapanlar Dikkat!",
+  "The Real Reason Everyone Is Quitting Their Job in 2026",
+  "Bu Videoyu İzledikten Sonra Bir Daha Aynı Olmayacaksınız",
+  "Doctors HATE This Simple Kitchen Trick",
+  "Son Dakika: Herkesin Konuştuğu O Karar Açıklandı",
+  "Why Your Salary Is a Lie (Watch Before It's Deleted)",
+  "10 Saniyede Anlayacaksınız: Sakın Bunu Yapmayın!",
+  "We Bought the Cheapest Laptop on the Internet... You Won't Believe What Happened",
+  "Kimse Söylemiyor Ama Bu Alışkanlık Sizi Bitiriyor"
+];
+
+/* Model id. VERIFY THIS at https://docs.claude.com/en/docs/about-claude/models
+   before the demo -- a stale id returns HTTP 404. A Haiku-class model is
+   faster and cheaper for this task and the quality difference is negligible. */
+const MODEL = "claude-sonnet-5";
+const API_URL = "https://api.anthropic.com/v1/messages";
+
+/* ---------------------------------------------------------------- fake feed
+   Channel names and view counts are decoration only. They are never counted,
+   never sent to the model, and never reported in the Mirror.              */
+const CHANNELS = ["Daily Loop","Gündem Kutusu","Studio 12","Sabah Analiz","The Signal",
+  "Kısa Kesit","Nightly Cut","Veri Bakışı","Prime Feed","Anlık","Kanal Orta","Hızlı Bakış"];
+const VIEWS = ["1.2M","842K","3.4M","96K","5.1M","210K","1.8M","67K","2.6M","430K","912K","158K"];
+
+/* ------------------------------------------------------------------- state */
+const state = {
+  apiKey: "",                 // memory only. never stored, never logged, never printed.
+  mode: "bait",               // "bait" | "boring"
+  cards: [],                  // {original, channel, views, own}
+  analysed: new Map(),        // original -> {boring, tactic, bait}
+  reflection: "",
+  busy: false,
+  tab: "feed"
+};
+
+/* ------------------------------------------------------------------- utils */
+const $ = id => document.getElementById(id);
+function el(tag, cls, text){
+  const n = document.createElement(tag);
+  if(cls) n.className = cls;
+  if(text !== undefined) n.textContent = text;
+  return n;
+}
+function showMsg(node, text){ node.textContent = text; node.hidden = false; delete node.dataset.hint; }
+function hideMsg(node){ node.textContent = ""; node.hidden = true; delete node.dataset.hint; }
+function hashOf(s){ let h = 0; for(let i=0;i<s.length;i++) h = (h*31 + s.charCodeAt(i)) | 0; return Math.abs(h); }
+
+function makeCard(title, own){
+  const h = own ? hashOf(title) : state.cards.length;
+  return { original: title, channel: CHANNELS[h % CHANNELS.length], views: VIEWS[h % VIEWS.length], own: !!own };
+}
+
+/* -------------------------------------------------------------- model calls */
+async function callModel(system, user, maxTokens, prefill){
+  const messages = [{ role: "user", content: user }];
+  if(prefill) messages.push({ role: "assistant", content: prefill });
+
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": state.apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true"
+    },
+    body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, system: system, messages: messages })
+  });
+
+  if(!res.ok){
+    // Status and the API's own error text only. The key is never included here.
+    let detail = "";
+    try { const j = await res.json(); detail = (j && j.error && j.error.message) ? j.error.message : ""; } catch(e){}
+    throw new Error("HTTP " + res.status + (detail ? ": " + detail.slice(0,200) : ""));
+  }
+  const data = await res.json();
+  const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+  return (prefill || "") + text;
+}
+
+function parseArray(text){
+  const a = text.indexOf("["), b = text.lastIndexOf("]");
+  if(a < 0 || b <= a) return null;
+  try { return JSON.parse(text.slice(a, b + 1)); } catch(e){ return null; }
+}
+
+/* Every field is checked before anything reaches the DOM. */
+function validate(arr, n){
+  if(!Array.isArray(arr) || arr.length !== n) return null;
+  const out = new Array(n);
+  for(let k = 0; k < arr.length; k++){
+    const it = arr[k];
+    if(!it || typeof it !== "object") return null;
+    const idx = Number.isInteger(it.index) ? it.index : k;
+    if(idx < 0 || idx >= n || out[idx]) return null;
+    const boring = typeof it.boring === "string" ? it.boring.trim() : "";
+    const tactic = typeof it.tactic === "string" ? it.tactic.trim() : "";
+    const bait = Number(it.bait);
+    if(!boring || !tactic || !Number.isFinite(bait)) return null;
+    out[idx] = { boring: boring, tactic: tactic, bait: Math.max(1, Math.min(5, Math.round(bait))) };
+  }
+  for(let i = 0; i < n; i++) if(!out[i]) return null;
+  return out;
+}
+
+function buildDebaitUser(list, retry){
+  const numbered = list.map((t, i) => i + ". " + t).join("\n");
+  return (retry ? "Your previous reply could not be parsed. Reply with the JSON array only, no prose.\n\n" : "")
+    + OUTPUT_CONTRACT.replace("{{N}}", String(list.length))
+    + "\n\nTitles:\n" + numbered;
+}
+
+/* One request for the whole batch. One retry. Then give up quietly. */
+async function runBatch(originals, msgNode){
+  if(!state.apiKey){ showMsg(msgNode, "Paste an API key in the header first."); return false; }
+  hideMsg(msgNode);
+  setBusy(true);
+  let result = null, lastErr = "";
+  try{
+    for(let attempt = 0; attempt < 2 && !result; attempt++){
+      try{
+        const raw = await callModel(
+          PROMPT_DEBAIT,
+          buildDebaitUser(originals, attempt > 0),
+          Math.min(4000, 600 + 200 * originals.length),
+          "["
+        );
+        result = validate(parseArray(raw), originals.length);
+        if(!result) lastErr = "the reply was not the expected JSON array";
+      }catch(e){
+        lastErr = (e && e.message) ? e.message : "request failed";
+      }
+    }
+  } finally {
+    setBusy(false);
+  }
+  if(!result){
+    showMsg(msgNode, "Couldn't rewrite these titles — " + lastErr + ". Showing the originals.");
+    return false;
+  }
+  originals.forEach((o, i) => state.analysed.set(o, result[i]));
+  state.reflection = "";           // the tally changed, so the old reflection is stale
+  return true;
+}
+
+/* ------------------------------------------------------------------ render */
+function renderFeed(){
+  const grid = $("grid");
+  grid.textContent = "";
+  for(const card of state.cards){
+    const a = state.analysed.get(card.original);
+    const boring = state.mode === "boring" && a;
+
+    const node = el("article", "card");
+    node.append(el("div", "thumb"));
+
+    const t = el("h3", "title " + (boring ? "t-boring" : "t-bait"), boring ? a.boring : card.original);
+    if(boring){
+      t.tabIndex = 0;
+      t.dataset.orig = card.original;
+      t.dataset.tactic = a.tactic;
+      t.dataset.bait = String(a.bait);
+    }
+    node.append(t);
+
+    node.append(el("p", "meta", card.channel + "  ·  " + card.views + " views" + (card.own ? "  ·  yours" : "")));
+    if(boring){
+      node.append(el("p", "cardbait" + (a.bait >= 4 ? " hot" : ""), "bait " + a.bait));
+    }
+    grid.append(node);
+  }
+}
+
+function syncSwitch(){
+  const boring = state.mode === "boring";
+  $("toggle").setAttribute("aria-checked", boring ? "true" : "false");
+  $("lblBait").classList.toggle("on", !boring);
+  $("lblBoring").classList.toggle("on", boring);
+}
+
+function setBusy(on){
+  state.busy = on;
+  $("grid").classList.toggle("busy", on);          // titles to 40%. nothing spins.
+  $("mReflect").classList.toggle("busy", on);
+  $("toggle").disabled = on;
+  $("runOwn").disabled = on;
+  $("runReflect").disabled = on;
+}
+
+/* -------------------------------------------------------------- the tally */
+function buildTally(){
+  const entries = [];
+  state.analysed.forEach((v, original) => entries.push({ original: original, boring: v.boring, tactic: v.tactic, bait: v.bait }));
+  const tactics = new Map();
+  for(const e of entries){
+    const key = e.tactic.toLowerCase();
+    const row = tactics.get(key) || { label: e.tactic, count: 0 };
+    row.count++;
+    tactics.set(key, row);
+  }
+  const byTactic = Array.from(tactics.values()).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  const dist = { 1:0, 2:0, 3:0, 4:0, 5:0 };
+  entries.forEach(e => { dist[e.bait]++; });
+  const top = entries.slice().sort((a, b) => b.bait - a.bait).slice(0, 3);
+  return { entries: entries, total: entries.length, byTactic: byTactic, dist: dist, top: top };
+}
+
+function renderMirror(){
+  const t = buildTally();
+  $("mTotal").textContent = t.total === 1 ? "1 title analysed this session."
+                                          : t.total + " titles analysed this session.";
+  $("mBody").hidden = t.total === 0;
+  if(t.total === 0){
+    if(!$("mEmpty")){
+      const p = el("p", "empty", "Nothing analysed yet. Flip the switch to BORING on the Feed tab.");
+      p.id = "mEmpty";
+      $("panel-mirror").append(p);
+    }
+    $("mEmpty").hidden = false;
+    return;
+  }
+  if($("mEmpty")) $("mEmpty").hidden = true;
+
+  const box = $("mTactics");
+  box.textContent = "";
+  const max = t.byTactic[0].count;
+  for(const row of t.byTactic){
+    const r = el("div", "trow");
+    r.append(el("div", "lbl", row.label));
+    const wrap = el("div", "barwrap");
+    const bar = el("div", "bar");
+    bar.style.width = Math.round(row.count / max * 100) + "%";
+    wrap.append(bar);
+    r.append(wrap);
+    r.append(el("div", "n", String(row.count)));
+    box.append(r);
+  }
+
+  const list = $("mTop");
+  list.textContent = "";
+  for(const e of t.top){
+    const li = document.createElement("li");
+    li.append(el("p", "o", e.original));
+    li.append(el("p", "b", e.boring));
+    const m = el("p", "m");
+    m.append(el("span", null, e.tactic + "  ·  "));
+    m.append(el("span", e.bait >= 4 ? "hot" : null, "bait " + e.bait));
+    li.append(m);
+    list.append(li);
+  }
+
+  $("mReflect").textContent = state.reflection || "";
+  $("runReflect").textContent = state.reflection ? "Regenerate" : "Generate reflection";
+}
+
+/* The reflection call gets counts only — no titles, no invented quantities. */
+async function runReflect(){
+  const t = buildTally();
+  if(t.total === 0) return;
+  if(!state.apiKey){ showMsg($("mirrormsg"), "Paste an API key in the header first."); return; }
+  hideMsg($("mirrormsg"));
+
+  const tactic_counts = {};
+  t.byTactic.forEach(r => { tactic_counts[r.label] = r.count; });
+  const payload = JSON.stringify({
+    titles_analysed: t.total,
+    tactic_counts: tactic_counts,
+    bait_score_counts: t.dist
+  }, null, 2);
+
+  setBusy(true);
+  try{
+    const text = await callModel(PROMPT_REFLECT, payload, 400, "");
+    state.reflection = text.trim();
+    hideMsg($("mirrormsg"));
+  }catch(e){
+    showMsg($("mirrormsg"), "Couldn't generate the reflection — " + ((e && e.message) ? e.message : "request failed") + ".");
+  }finally{
+    setBusy(false);
+    renderMirror();
+  }
+}
+
+/* -------------------------------------------------------------- interaction */
+async function setMode(next){
+  if(state.busy || next === state.mode) return;
+
+  if(next === "bait"){                       // instant, from memory
+    state.mode = "bait";
+    hideMsg($("feedmsg"));
+    syncSwitch();
+    renderFeed();
+    return;
+  }
+
+  const need = [];
+  const seen = new Set();
+  for(const c of state.cards){
+    if(!state.analysed.has(c.original) && !seen.has(c.original)){ seen.add(c.original); need.push(c.original); }
+  }
+  if(need.length) await runBatch(need, $("feedmsg"));
+
+  if($("ownmsg").dataset.hint === "1") hideMsg($("ownmsg"));   // the "flip to BORING" nudge is stale now
+  state.mode = "boring";
+  syncSwitch();
+  renderFeed();
+}
+
+async function runOwn(){
+  if(state.busy) return;
+  const lines = $("own").value.split("\n").map(s => s.trim()).filter(Boolean);
+  if(!lines.length){ showMsg($("ownmsg"), "Nothing to read — put one title on each line."); return; }
+  hideMsg($("ownmsg"));
+
+  const existing = new Set(state.cards.map(c => c.original));
+  const fresh = [];
+  for(const line of lines){
+    if(existing.has(line)) continue;
+    existing.add(line);
+    fresh.push(line);
+    state.cards.push(makeCard(line, true));
+  }
+  renderFeed();
+
+  const need = fresh.filter(t => !state.analysed.has(t));
+  const ok = need.length ? await runBatch(need, $("ownmsg")) : true;
+  renderFeed();
+  renderMirror();
+
+  if(ok && state.mode === "bait"){
+    showMsg($("ownmsg"), "Added " + lines.length + ". Flip the switch to BORING to see them rewritten.");
+    $("ownmsg").dataset.hint = "1";
+  }else if(ok){
+    hideMsg($("ownmsg"));
+  }
+  $("own").value = "";
+}
+
+function showTab(name){
+  state.tab = name;
+  $("panel-feed").hidden = name !== "feed";
+  $("panel-mirror").hidden = name !== "mirror";
+  document.querySelectorAll(".tab").forEach(b => {
+    const on = b.dataset.tab === name;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  if(name === "mirror"){
+    renderMirror();
+    const t = buildTally();
+    if(t.total > 0 && state.apiKey && !state.reflection && !state.busy) runReflect();
+  }
+}
+
+/* tooltip: original text, tactic, bait score */
+const tip = $("tip");
+function showTip(target){
+  if(!target.dataset.orig) return;
+  tip.textContent = "";
+  tip.append(el("div", "o", target.dataset.orig));
+  const m = el("div", "m");
+  m.append(el("span", null, target.dataset.tactic + "  ·  "));
+  m.append(el("span", Number(target.dataset.bait) >= 4 ? "hot" : null, "bait " + target.dataset.bait));
+  tip.append(m);
+  tip.hidden = false;
+
+  const r = target.getBoundingClientRect();
+  let left = r.left;
+  if(left + tip.offsetWidth > window.innerWidth - 12) left = window.innerWidth - 12 - tip.offsetWidth;
+  let top = r.bottom + 6;
+  if(top + tip.offsetHeight > window.innerHeight - 12) top = r.top - tip.offsetHeight - 6;
+  tip.style.left = Math.max(12, left) + "px";
+  tip.style.top = Math.max(12, top) + "px";
+}
+function hideTip(){ tip.hidden = true; }
+
+/* ------------------------------------------------------------------- wiring */
+$("key").addEventListener("input", e => { state.apiKey = e.target.value.trim(); });
+$("toggle").addEventListener("click", () => setMode(state.mode === "boring" ? "bait" : "boring"));
+$("runOwn").addEventListener("click", runOwn);
+$("runReflect").addEventListener("click", runReflect);
+document.querySelectorAll(".tab").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
+
+$("grid").addEventListener("mouseover", e => {
+  const t = e.target.closest(".title[data-orig]");
+  if(t) showTip(t);
+});
+$("grid").addEventListener("mouseout", e => {
+  if(e.target.closest(".title[data-orig]")) hideTip();
+});
+$("grid").addEventListener("focusin", e => {
+  const t = e.target.closest(".title[data-orig]");
+  if(t) showTip(t);
+});
+$("grid").addEventListener("focusout", hideTip);
+window.addEventListener("scroll", hideTip, true);
+
+/* --------------------------------------------------------------------- boot */
+TITLES.forEach(t => state.cards.push(makeCard(t, false)));
+renderFeed();
+syncSwitch();
+renderMirror();
+</script>
+</body>
+</html>
