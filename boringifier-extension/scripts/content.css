@@ -81,7 +81,8 @@
 
 .boringifier-flat {
   font-weight: 400 !important;
-  color: #606060 !important;
+  color: var(--yt-spec-text-secondary, currentColor) !important;
+  opacity: 0.85;
 }
 
 /* On watch page, full width container */
