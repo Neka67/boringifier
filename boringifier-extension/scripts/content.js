@@ -9,6 +9,7 @@ console.log("Boringifier: Content script loaded!");
 
 // Target the main video containers on home page, search, and related videos
 const CONTAINER_SELECTORS = [
+  'yt-lockup-view-model:not([data-boringifier-processed])',
   'ytd-rich-grid-media:not([data-boringifier-processed])',
   'ytd-compact-video-renderer:not([data-boringifier-processed])',
   'ytd-video-renderer:not([data-boringifier-processed])'
@@ -16,33 +17,43 @@ const CONTAINER_SELECTORS = [
 
 function observeFeed() {
   console.log("Boringifier: Observing feed...");
-  const observer = new MutationObserver(() => {
+
+  function scan() {
     const containers = document.querySelectorAll(CONTAINER_SELECTORS);
-    if (containers.length > 0) {
-      containers.forEach(container => {
-        // Find the title element inside this container
-        const titleElement = container.querySelector('#video-title, #video-title-link');
-        if (!titleElement) return;
+    if (containers.length === 0) return;
 
-        const titleText = titleElement.textContent.trim();
-        
-        // Mark container as processed immediately so we don't query it again
-        container.dataset.boringifierProcessed = "true";
+    containers.forEach(container => {
+      // Try the old ids first, then fall back to YouTube's newer lockup markup.
+      // Ordered by specificity: querySelector with a comma list returns whatever
+      // comes first in the DOM, which is not what we want here.
+      const titleElement =
+        container.querySelector('#video-title, #video-title-link') ||
+        container.querySelector('h3 span.yt-core-attributed-string') ||
+        container.querySelector('h3 span') ||
+        container.querySelector('h3 a');
+      if (!titleElement) return;
 
-        if (titleText && titleText.length > 5 && !processedTitles.has(titleText)) {
-          processedTitles.add(titleText);
-          pendingTitles.push({ element: titleElement, text: titleText });
-          injectLoadingBadge(titleElement);
-        }
-      });
+      const titleText = titleElement.textContent.trim();
+      container.dataset.boringifierProcessed = "true";
 
-      if (!batchTimer && pendingTitles.length > 0) {
-        batchTimer = setTimeout(processBatch, 1500);
+      if (titleText && titleText.length > 5 && !processedTitles.has(titleText)) {
+        processedTitles.add(titleText);
+        pendingTitles.push({ element: titleElement, text: titleText });
+        injectLoadingBadge(titleElement);
       }
-    }
-  });
+    });
 
+    if (pendingTitles.length) {
+      console.log("Boringifier: queued", pendingTitles.length, "titles");
+    }
+    if (!batchTimer && pendingTitles.length > 0) {
+      batchTimer = setTimeout(processBatch, 1500);
+    }
+  }
+
+  const observer = new MutationObserver(scan);
   observer.observe(document.body, { childList: true, subtree: true });
+  scan();   // the feed is often already rendered before this script runs
 }
 
 function processBatch() {
