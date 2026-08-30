@@ -2,54 +2,108 @@
 
 **Group 10** · Digital Addiction & Digital Well-Being · 30 August 2026
 **Team:** Huzeyfe Hakan Sarıcaoğlu, Nehir Kazancı, Ramazan Bıyık, Damla Korkmaz, Asya Güney
-**Model used:** Google Gemini (`gemini-3.6-flash`) via the `generateContent` API — the same model family the prompts were developed on
+**Model:** Google Gemini (`gemini-3.6-flash`) via the `generateContent` API
 **Repository:** https://github.com/Neka67/boringifier
 
 ---
 
 ## 1. The problem
 
-Compulsive feed use is not mainly driven by the quality of the content. It is driven by the **curiosity gap**: a title that withholds its own answer creates a tension the reader is motivated to resolve, and clicking resolves it. Recommendation feeds are optimised to generate that tension continuously, which is why people open an app intending to watch one thing and leave forty minutes later unable to say what they watched.
+Compulsive feed use is not mainly driven by the quality of the content. It is
+driven by the **curiosity gap**: a title that withholds its own answer creates a
+tension the reader is motivated to resolve, and clicking resolves it.
+Recommendation feeds are optimised to generate that tension continuously, which
+is why people open an app intending to watch one thing and leave forty minutes
+later unable to say what they watched.
 
-Our target user is that person — someone who does not want to quit a platform, but who wants to stop being pulled through it. We chose to intervene at the moment of temptation rather than reporting on it afterwards.
+Our target user is that person — someone who does not want to quit a platform,
+but who wants to stop being pulled through it. We intervene at the moment of
+temptation rather than reporting on it afterwards.
 
-**What our tool does, in one sentence:** Boringifier removes the manipulation from the titles in a feed and shows the user which persuasion tactics that feed was using on them.
+**In one sentence:** Boringifier removes the manipulation from the titles in a
+real YouTube feed and shows the user which persuasion tactics that feed was
+using on them.
 
-## 2. Solution and the role of generative AI
+## 2. The solution
 
-Boringifier is a single-page web application with two modes.
+The project ships as **two surfaces sharing one engine**.
 
-**The Feed.** A feed of video titles is displayed as it normally appears. One toggle rewrites every title into a flat, factual version: the emotional framing is removed and, where the original withholds information, the rewrite states plainly what the content is about. Hovering any rewritten title restores the original word for word, together with the manipulation tactic identified and a 1–5 bait estimate. Users can also paste their own titles, so the tool works on any feed rather than a prepared sample.
+**A Chrome extension (Manifest V3) — the deployed intervention.** On the YouTube
+homepage it collects titles as the feed renders, sends them to the model in
+batches of twelve, and replaces each title in place with a flat, factual
+version. The rewritten title is set in a lighter weight than untouched text, a
+1–5 bait score appears beside it, and hovering restores the original word for
+word along with the manipulation tactic identified. On a video's watch page it
+goes further: it fetches the caption track and compares the title against what
+the video actually contains.
 
-**The Mirror.** A second view reports what the feed just did: how many titles were analysed, which tactics appeared and how often, and a short generated reflection on the pattern.
+**A single-page web application — the controlled testbed.** The same prompts
+running against a fixed feed, plus a free-text box for arbitrary titles. This is
+where the prompts were developed and where behaviour can be checked
+reproducibly, without YouTube's DOM changing underneath the experiment. It also
+carries the **Mirror**: a session tally of how many titles were analysed, which
+tactics appeared and how often, and a short generated reflection.
 
-**Why generative AI is core rather than decorative.** Every function above is a judgement about meaning, not a text transformation. Deciding whether a title withholds its own answer, which persuasion tactic it uses, and what a neutral restatement of it would be cannot be done with keywords or regular expressions. Our own test data demonstrates this directly: *"Doctors HATE this one simple trick"* and *"Health ministry warns of heat wave, advises avoiding outdoor work between 11:00 and 16:00"* both contain urgent, emotionally charged language, but one is manipulation and one is public safety information. Distinguishing them requires a model. Remove the model and there is no product.
+The division is deliberate. The extension is where the tool is useful; the web
+app is where it is testable. Both call the same model with the same prompts.
+
+**Why generative AI is core rather than decorative.** Every function above is a
+judgement about meaning, not a text transformation. Whether a title withholds
+its own answer, which tactic it uses, and what a neutral restatement would be
+cannot be decided with keywords. Our own test data shows why: *"Doctors HATE
+this one simple trick"* and *"Health ministry warns of heat wave, advises
+avoiding outdoor work between 11:00 and 16:00"* both use urgent, charged
+language, but one is manipulation and one is public safety information.
+Separating them requires a model. Remove the model and there is no product.
 
 ## 3. Prompt design
 
-We wrote **two** system prompts and deliberately built them with **different techniques**, because they solve different kinds of problem.
+The system uses **three** system prompts, built with deliberately different
+techniques because they solve different kinds of problem.
 
-| | Prompt A — the debaiter | Prompt B — the reflector |
-|---|---|---|
-| **Job** | Rewrite a title, classify its tactic, score it | Write a short reflection on a tally |
-| **Techniques** | Structured step-by-step + few-shot + structured output (JSON) | Zero-shot + constraint-based (negative) prompting |
-| **Why** | One narrow correct output form. Examples show the form faster than description can | Many acceptable answers, one unacceptable *tone*. Boundaries matter more than models to imitate |
+| | A · debait (feed) | B · transcript (watch page) | C · reflect (Mirror) |
+|---|---|---|---|
+| **Job** | Rewrite a title from the title alone | Rewrite using the video's captions, and score title-to-content match | Write a reflection on a tally |
+| **Techniques** | Structured step-by-step + few-shot + structured output | Structured step-by-step + structured output, no examples | Zero-shot + constraint-based (negative) prompting |
+| **Why** | One narrow correct output form; examples show it faster than description can | The task is grounded in supplied source text, so rules suffice and examples would bias it toward their own subjects | Many acceptable answers, one unacceptable *tone*; boundaries matter more than models to imitate |
 
-Prompt A decomposes a vague instruction ("make it boring") into three checkable operations — close the gap, flatten the register, state the subject plainly — followed by hard rules, a fixed tactic vocabulary, a 1–5 scale, and a JSON schema the application validates before rendering.
+Prompt A decomposes a vague instruction ("make it boring") into three checkable
+operations — close the gap, flatten the register, state the subject plainly —
+followed by hard rules, a fixed tactic vocabulary, a 1–5 scale, and a JSON
+schema the application validates before rendering.
 
-Prompt B contains almost no positive instruction. It is mostly prohibitions: no second-person judgement, no vocabulary of blame ("addiction", "wasting", "should"), no estimate that was not directly counted, no clinical or diagnostic framing, no praise or encouragement. This is a deliberate design choice, not laziness — for a reflection shown to someone about their own behaviour, the risk is not a wrong answer but a harmful tone, and prohibitions constrain tone more reliably than examples do.
+**Prompt B is the same task under different information conditions, and the
+change is instructive.** Prompt A must forbid guessing: with only the title, an
+unanswerable hook can only be *described* ("Video about an object found in an
+attic"). Prompt B has the transcript, so the same rule inverts — it is now
+required to state what the video actually reveals, and forbidden to go beyond
+the transcript. It also adds a second score, content-match, separating *is this
+title manipulative* from *is this title accurate*, which are genuinely different
+questions.
+
+Prompt C contains almost no positive instruction. It is mostly prohibitions: no
+second-person judgement, no vocabulary of blame ("addiction", "wasting",
+"should"), no estimate that was not directly counted, no clinical framing, no
+praise. This is a design choice, not laziness — for text shown to someone about
+their own behaviour, the risk is not a wrong answer but a harmful tone, and
+prohibitions constrain tone more reliably than examples do.
 
 ### 3.1 Iteration method
 
-We fixed five test titles, each chosen to test a distinct failure mode, and held them constant across all versions:
+Five test titles, each testing a distinct failure mode, held constant across all
+versions:
 
 1. Extreme clickbait (English) — *I Tried EVERY Fast Food Breakfast So You NEVER Have To 🤯*
 2. Moderate curiosity gap — *The real reason your phone battery dies so fast*
-3. **Negative control** — *How to change a bike tire in 5 minutes* (already plain; must survive unchanged)
+3. **Negative control** — *How to change a bike tire in 5 minutes* (already plain; must survive)
 4. Turkish clickbait — *Bunu bilmeden telefonunuzu şarj etmeyin!*
 5. **Safety control** — *Health ministry warns of heat wave, advises avoiding outdoor work between 11:00 and 16:00*
 
-Each prompt version was run **in a separate conversation** so that earlier context could not improve later versions, and all runs used the same model. Outputs were scored against eight checks.
+Each version was run **in a separate conversation** so context from an earlier
+run could not improve a later one. Iteration was carried out on Gemini Pro; the
+deployed system runs `gemini-3.6-flash`, and the five titles were re-run through
+the deployed prototype to confirm the shipped prompt behaves as logged. Full
+outputs are in `prompt_log.md`.
 
 ### 3.2 Results
 
@@ -65,56 +119,109 @@ Each prompt version was run **in a separate conversation** so that earlier conte
 | Actionable detail preserved | ✗ | ✓ | ✓ |
 | **Total** | **3 / 8** | **8 / 8** | **7 / 8** |
 
-\* v1 contained no word cap, so this row records observed consistency rather than compliance with an instruction.
+\* v1 contained no word cap, so this row records observed consistency rather
+than compliance with an instruction.
 
-Full outputs for all three versions are in `prompt_log.md` in the repository.
+### 3.3 Findings
 
-### 3.3 What we found
+**1. Structured instruction did most of the work.** We expected the structured
+version to keep over-rewriting the already-plain title. It did not — v2 scored
+8/8. Explicit rules and a fixed output schema were sufficient to reach correct
+behaviour on every check; few-shot examples were not required to get there.
 
-**Finding 1 — Structured instruction did most of the work.** We expected the zero-shot version to fail and it did, on four checks. But we also expected the structured version to keep over-rewriting the already-plain title, and **it did not**. v2 scored 8/8. Explicit rules and a fixed output schema were sufficient to produce correct behaviour on every check; few-shot examples were not required to reach it.
+**2. Examples changed how *completely* a protective rule was obeyed.**
 
-**Finding 2 — Examples changed how *completely* a protective rule was obeyed.** Although v2 passed every check, comparing it with v3 on the two control titles shows a consistent difference:
-
-| | Negative control (title 3) | Safety control (title 5) |
+| | Negative control (3) | Safety control (5) |
 |---|---|---|
-| **v2** | returned with an added full stop | rephrased and compressed to exactly 12 words |
-| **v3** | returned byte-for-byte identical | returned byte-for-byte identical |
+| v2 | returned with an added full stop | rephrased, compressed to exactly 12 words |
+| v3 | returned byte-for-byte identical | returned byte-for-byte identical |
 
-v2 interpreted "leave it unchanged" as *rewrite it minimally*. v3 interpreted it as *return it verbatim*. For a rule that exists to protect someone else's words, that distinction is the entire point, and it was the worked example — showing a plain title coming back untouched — that taught it.
+v2 read "leave it unchanged" as *rewrite it minimally*; v3 read it as *return it
+verbatim*. For a rule whose purpose is to protect someone else's words, that
+distinction is the entire point.
 
-**Finding 3 — A rule conflict, resolved correctly by the safer version.** v3's only failed check is the word cap: it returned the heat-wave warning at 14 words against a 12-word limit. This is where two of our own rules collide — *never flatten genuine safety urgency* versus *twelve words maximum*. v2 obeyed the length rule and compressed the warning; v3 broke the length rule to keep the warning intact. **v3 chose correctly**, and we kept it. A failed check here is the desired behaviour, and we have since made the precedence explicit in the prompt so the resolution is designed rather than incidental.
+**3. A rule conflict, resolved correctly by the safer version.** v3's only failed
+check is the word cap: it returned the heat-wave warning at 14 words against a
+12-word limit. Two of our rules collide — *never flatten genuine safety urgency*
+versus *twelve words maximum*. v2 obeyed the cap and compressed the warning; v3
+broke the cap and kept it intact. v3 chose correctly, so we shipped it and added
+an explicit precedence clause to the prompt, making the resolution designed
+rather than incidental.
 
-**Finding 4 — Few-shot examples carry their own bias.** The Turkish title's tactic changed from `curiosity-gap` (v2) to `false-urgency` (v3). We judge v2 to be more accurate: *"Bunu bilmeden telefonunuzu şarj etmeyin!"* withholds *what* the reader needs to know, which is a curiosity gap. Our example set contains a Turkish imperative labelled `fear`, and it appears to have pulled a structurally similar Turkish imperative toward the urgency family. Examples improve consistency and transfer their own assumptions at the same time — a trade-off we document rather than claim to have solved.
+**4. Few-shot examples carry their own bias.** The Turkish title's tactic moved
+from `curiosity-gap` (v2) to `false-urgency` (v3). We judge v2 more accurate: the
+title withholds *what* the reader needs to know, which is a curiosity gap. Our
+example set contains a Turkish imperative labelled `fear`, which appears to have
+pulled a structurally similar Turkish imperative toward the urgency family.
+Examples improve consistency and transfer their own assumptions at the same
+time.
 
 ## 4. Challenges
 
-- **Rule collisions are invisible until tested.** Our safety rule and our length rule contradicted each other, and we only discovered it because the test set happened to contain a real safety headline. Neither rule is wrong alone; the conflict exists only in the narrow set of titles both apply to, which is exactly the set a small test suite is most likely to miss. The precedence is now stated explicitly in the prompt rather than left to the model.
-
-- **A thinking model on a task that needs no thinking.** Gemini 3.x reasons before it answers — `thinking_level` defaults to `medium` — and those reasoning tokens are drawn from the same `maxOutputTokens` budget as the reply itself. On a large batch the model can therefore spend its entire budget thinking and return an empty candidate with `finishReason: MAX_TOKENS`, which presents as a broken response rather than an exhausted allowance. Rewriting a headline requires no deliberation, so we set `thinkingLevel: "low"` and made the retry double the token budget, so a batch that ran out gets a genuinely different second attempt instead of failing identically twice.
-
-- **A key that could not be sent at all.** Pasting an API key copied out of a chat window failed before any request left the browser, with `String contains non ISO-8859-1 code point`. HTTP header values must be Latin-1, and the copied text carried typographic quotes and a zero-width space introduced by the application it came from — characters invisible in a password field. The input now strips everything outside printable ASCII and rewrites the field, so what the user sees is what is actually sent.
-
-- **Serving the page.** The application is a single static file, but it cannot simply be double-clicked: opened from `file://` the page has a null origin and the API call is refused as a CORS failure, which reads like a network fault rather than a permissions one. It must be served over `http://localhost`. A proxy path is kept in the code for the case where the direct browser call is blocked outright.
-
-- **Batching.** A feed contains 20–40 titles. Sending one request per title made the interface unusable; batching the whole feed into a single request with a JSON array response was necessary for the tool to feel instant. The reply is validated field by field before anything is rendered, and a malformed batch falls back to the original titles rather than a partial render.
-
-- **Testing revealed cases we had not designed for.** [20-title run — paste the table from test_run.md here, then two or three sentences on what broke and what you changed.]
+- **A silent DOM mismatch.** The extension logged that it was watching the feed
+  and then did nothing. Its selectors targeted `ytd-rich-grid-media` and
+  `ytd-video-renderer`; YouTube now renders homepage cards as
+  `yt-lockup-view-model` inside `ytd-rich-item-renderer`, so zero elements ever
+  matched and no request was ever sent. We diagnosed it by counting matches for
+  candidate selectors in the console. We also found the scan ran only inside the
+  mutation callback, so a feed that finished rendering before the script loaded
+  was never scanned at all; it now runs once on load as well.
+- **A non-ASCII character in the API key field** made `fetch` throw before any
+  request left the browser. The error named the header, not the key, so it read
+  as a code fault. Input is now stripped to printable ASCII.
+- **Opaque CORS failure.** Browser calls from a `file://` origin failed with
+  "Failed to fetch" and no detail. Serving over `localhost` resolved it, and a
+  pass-through local server is included as a fallback. The extension avoids the
+  problem entirely by declaring host permissions.
+- **A retired model id.** Our first target model had been withdrawn; the API's
+  own 404 named the replacement. Model ids are now pinned and verified rather
+  than assumed.
+- **An output contract that would have broken the interface.** The tactic field
+  was first specified as free text ("2–4 words naming the manipulation").
+  Because the Mirror groups titles by tactic string, near-synonyms would have
+  fragmented every count to one and made the breakdown meaningless. The contract
+  now constrains tactic to a fixed eight-value vocabulary.
+- **Batch length mismatches.** Validation requires exactly one object per input
+  title. When the model returned a different count the batch was discarded and a
+  null result reached the renderer. Failed batches now leave their titles
+  untouched instead of throwing.
 
 ## 5. Ethical evaluation
 
 | Risk | How we reduced it |
 |---|---|
-| **Misrepresenting creators.** We display a rewrite of someone else's words; a wrong rewrite attributes meaning to a person who did not write it. | The original is never destroyed and is always one hover away. The prompt forbids inventing facts. A title scored 1 is returned unchanged. |
-| **Flattening genuine urgency.** Real health, safety and news headlines look sensational because the underlying event is. | An explicit prompt rule returns such titles unchanged with tactic `none`, and a real public-health headline is in our permanent test set. In v1 this failed visibly: the times 11:00–16:00 were deleted from a heat-wave warning. |
-| **Judging the user.** A reflection feature can very easily shame. | The Mirror analyses **the feed, never the person**. Prompt B forbids second-person judgement outright and bans the vocabulary of blame. |
-| **Sounding like a diagnosis.** The brief requires support, not medical assessment. | No score is ever assigned to a user. The tool holds no model of the person — only counts of what a feed contained. The words *addiction*, *disorder* and *dependency* are prohibited in Prompt B. |
-| **Overconfident numbers.** A bait score is a model judgement, not a measurement. | Shown as a 1–5 label, never a percentage, and described in the interface as an estimate. No derived metrics such as "minutes saved" appear anywhere. |
-| **Privacy.** Titles are sent to a third-party API, and what someone watches is revealing. | No account, no history, no storage. Only title text leaves the browser, only when the user acts. **Residual risk we have not solved:** title text still reveals interests, so a real deployment would require explicit consent and ideally local processing. |
-| **Language and cultural bias.** The model's sense of what is sensational is shaped largely by English data. | Turkish titles appear in both the examples and the test set. Finding 4 above is direct evidence that this bias is real and measurable in our own output; we report it as a known limitation. |
+| **Misrepresenting creators.** We overwrite someone else's words on their own page; a wrong rewrite attributes meaning to a person who did not write it. | The original is never destroyed — it is kept on the element and shown on hover. The prompt forbids inventing facts. A title scored 1 is returned unchanged, word for word. |
+| **Flattening genuine urgency.** Real health, safety and news headlines look sensational because the underlying event is. | An explicit prompt rule returns such titles unchanged with tactic `none`, and a real public-health headline sits permanently in our test set. In v1 this failed visibly: the times 11:00–16:00 were deleted from a heat-wave warning. |
+| **Judging the user.** A reflection feature can very easily shame. | The Mirror analyses **the feed, never the person**. Prompt C forbids second-person judgement and bans the vocabulary of blame. |
+| **Sounding like a diagnosis.** The brief requires support, not medical assessment. | No score is ever assigned to a user. The system holds no model of the person — only counts of what a feed contained. *Addiction*, *disorder* and *dependency* are prohibited words in Prompt C. |
+| **Overconfident numbers.** Bait and content-match scores are model judgements, not measurements. | Shown as 1–5 labels, never percentages, and described as estimates. No derived metric such as "minutes saved" appears anywhere. |
+| **Privacy — heightened by the extension.** The web app sees only titles a user pastes. The extension sees the user's **personal recommended feed**, which reveals interests, beliefs and habits, and sends those titles to a third-party API. | No account, no history, no server of our own; titles are sent for analysis and not retained by us. This is the risk we have *not* fully solved, and we state it plainly: a real deployment would need explicit informed consent, a visible indicator of what is being transmitted, and ideally on-device processing. For the demonstration we use a logged-out feed so no personal recommendation data is exposed. |
+| **Key storage.** The extension keeps the API key in `chrome.storage.local`, unencrypted. | Acceptable for a prototype the user installs unpacked with their own key. A released version would need a backend so the key never sits in the browser. Named here rather than hidden. |
+| **Modifying a third-party page.** The extension changes what a website displays without that site's involvement. | It is opt-in, installed deliberately by the user, alters only the text the user asked to have altered, and is reversible on hover. We treat this as user agency over their own browser rather than interference with the site. |
+| **Language and cultural bias.** The model's sense of what is sensational is shaped largely by English data. | Turkish titles appear in the examples and in the test set. Finding 4 is direct evidence that this bias is real and measurable in our own output; we report it as a known limitation rather than a solved problem. |
 
-## 6. Known limitation
+### A feature we rejected
 
-Our first operation is "close the curiosity gap" — answer the question the title is withholding. Testing showed this is **rarely achievable from the title alone**, because a clickbait title by definition does not contain its own answer. The model correctly describes the subject instead of guessing (guessing would violate our no-invented-facts rule), but the gap is removed rather than filled. Closing it properly would require the video description or transcript, which is the clearest next step for this project.
+We considered blurring video thumbnails to reduce their pull, and decided against
+it. Our stated principle is that nothing is hidden and the original is always
+recoverable, and an indiscriminate blur contradicts both. It would also ignore
+the bait score entirely, applying the same treatment to a manipulative title and
+an honest one — the opposite of the discrimination the rest of the system is
+built on.
 
----
+## 6. From limitation to feature
 
+Our first operation is "close the curiosity gap" — answer the question the title
+withholds. Testing showed this is **not achievable from the title alone**,
+because a clickbait title by definition does not contain its own answer. Prompt
+A therefore describes the subject rather than guessing, which removes the hook
+but does not fill it.
+
+The watch-page analysis closes that gap properly. With the caption track
+available, Prompt B can state what the video actually reveals, and the
+content-match score reports whether the title's promise was kept. The remaining
+limits are real: not every video has captions, transcripts are truncated to stay
+within budget, and auto-generated captions are imperfect. But the gap the
+title-only prompt could not fill is filled wherever the content is available,
+and the difference between the two prompts is precisely a difference in what
+information was available to each.
