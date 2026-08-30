@@ -2,7 +2,7 @@
 
 **Group 10** · Digital Addiction & Digital Well-Being · 30 August 2026
 **Team:** Huzeyfe Hakan Sarıcaoğlu, Nehir Kazancı, Ramazan Bıyık, Damla Korkmaz, Asya Güney
-**Model used:** Google Gemini (`gemini-2.5-flash`) via the `generateContent` API — the same model family the prompts were developed on
+**Model used:** Google Gemini (`gemini-3.6-flash`) via the `generateContent` API — the same model family the prompts were developed on
 **Repository:** https://github.com/Neka67/boringifier
 
 ---
@@ -88,10 +88,17 @@ v2 interpreted "leave it unchanged" as *rewrite it minimally*. v3 interpreted it
 
 ## 4. Challenges
 
-- **Rule collisions are invisible until tested.** Our safety rule and our length rule contradicted each other and we only discovered it because the test set contained a real safety headline. [Add anything else your build hit here.]
-- **Browser-to-API calls.** Calling the API directly from a static page requires an explicit browser-access header; without it the request fails as a CORS error that reads like a network fault.
-- **Batching.** A feed contains 20–40 titles. Sending one request per title made the interface unusable; batching the whole feed into a single request with a JSON array response was necessary for the tool to feel instant.
-- **Testing revealed cases we had not designed for.** [Insert the failure log from your 20-title test run — real examples are stronger than this placeholder.]
+- **Rule collisions are invisible until tested.** Our safety rule and our length rule contradicted each other, and we only discovered it because the test set happened to contain a real safety headline. Neither rule is wrong alone; the conflict exists only in the narrow set of titles both apply to, which is exactly the set a small test suite is most likely to miss. The precedence is now stated explicitly in the prompt rather than left to the model.
+
+- **A thinking model on a task that needs no thinking.** Gemini 3.x reasons before it answers — `thinking_level` defaults to `medium` — and those reasoning tokens are drawn from the same `maxOutputTokens` budget as the reply itself. On a large batch the model can therefore spend its entire budget thinking and return an empty candidate with `finishReason: MAX_TOKENS`, which presents as a broken response rather than an exhausted allowance. Rewriting a headline requires no deliberation, so we set `thinkingLevel: "low"` and made the retry double the token budget, so a batch that ran out gets a genuinely different second attempt instead of failing identically twice.
+
+- **A key that could not be sent at all.** Pasting an API key copied out of a chat window failed before any request left the browser, with `String contains non ISO-8859-1 code point`. HTTP header values must be Latin-1, and the copied text carried typographic quotes and a zero-width space introduced by the application it came from — characters invisible in a password field. The input now strips everything outside printable ASCII and rewrites the field, so what the user sees is what is actually sent.
+
+- **Serving the page.** The application is a single static file, but it cannot simply be double-clicked: opened from `file://` the page has a null origin and the API call is refused as a CORS failure, which reads like a network fault rather than a permissions one. It must be served over `http://localhost`. A proxy path is kept in the code for the case where the direct browser call is blocked outright.
+
+- **Batching.** A feed contains 20–40 titles. Sending one request per title made the interface unusable; batching the whole feed into a single request with a JSON array response was necessary for the tool to feel instant. The reply is validated field by field before anything is rendered, and a malformed batch falls back to the original titles rather than a partial render.
+
+- **Testing revealed cases we had not designed for.** [20-title run — paste the table from test_run.md here, then two or three sentences on what broke and what you changed.]
 
 ## 5. Ethical evaluation
 
@@ -111,9 +118,3 @@ Our first operation is "close the curiosity gap" — answer the question the tit
 
 ---
 
-### Placeholders to fill before submitting
-
-1. Confirm the exact Gemini model id matches what you ran — header
-3. Section 4, bullet 1 — any other build problems you hit
-4. Section 4, bullet 4 — your 20-title failure log
-5. Confirm the team list is correct
