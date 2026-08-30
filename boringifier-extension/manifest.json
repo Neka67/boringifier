@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Boringifier for YouTube",
+  "version": "1.0",
+  "description": "Removes clickbait manipulation from YouTube titles and shows what the feed was doing.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://*.youtube.com/*",
+    "https://generativelanguage.googleapis.com/*"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html"
+  },
+  "background": {
+    "service_worker": "scripts/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*.youtube.com/*"],
+      "css": ["scripts/content.css"],
+      "js": ["scripts/content.js"]
+    }
+  ]
+}

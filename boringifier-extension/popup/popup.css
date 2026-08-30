@@ -1,0 +1,44 @@
+:root{
+  --ink:#111;
+  --quiet:#3f3f3f;
+  --meta:#5a5a5a;
+  --line:#d6d6d6;
+  --rule:#ececec;
+  --bg:#fff;
+  --bait:#b3261e;
+}
+*{box-sizing:border-box}
+body{
+  width: 300px;
+  margin:0;padding:0;
+  background:var(--bg);
+  color:var(--ink);
+  font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+}
+header{
+  padding:12px 16px;
+  border-bottom:1px solid var(--line);
+}
+.brand{font-size:16px;font-weight:700;}
+main{padding:16px;}
+.section{margin-bottom: 20px;}
+label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;}
+input[type="password"]{
+  width:100%;font-family:inherit;font-size:14px;padding:6px 8px;
+  border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:0;
+  margin-bottom: 8px;
+}
+input[type="password"]:focus{outline:2px solid var(--ink);outline-offset:-1px}
+.btn{
+  width: 100%;
+  font-family:inherit;font-size:14px;padding:8px;
+  border:1px solid var(--ink);background:var(--ink);color:#fff;border-radius:0;cursor:pointer;
+}
+.btn-outline{
+  background: #fff;
+  color: var(--ink);
+  margin-top: 8px;
+}
+.msg{font-size:13px;color:var(--meta);margin:6px 0 0;}
+h3{font-size:14px;font-weight:600;margin:0 0 8px 0;text-transform:uppercase;color:var(--meta);}
+.total{font-size:14px;margin:0 0 12px 0;}
