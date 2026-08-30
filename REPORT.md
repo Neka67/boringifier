@@ -2,8 +2,8 @@
 
 **Group 10** · Digital Addiction & Digital Well-Being · 30 August 2026
 **Team:** Huzeyfe Hakan Sarıcaoğlu, Nehir Kazancı, Ramazan Bıyık, Damla Korkmaz, Asya Güney
-**Model used:** [FILL IN — e.g. Claude Haiku 4.5 via the Anthropic Messages API]
-**Repository:** [FILL IN GITHUB LINK]
+**Model used:** Google Gemini (`gemini-2.5-flash`) via the `generateContent` API — the same model family the prompts were developed on
+**Repository:** https://github.com/Neka67/boringifier
 
 ---
 
@@ -113,8 +113,7 @@ Our first operation is "close the curiosity gap" — answer the question the tit
 
 ### Placeholders to fill before submitting
 
-1. Model name and version — header and section 2
-2. GitHub repository link — header
+1. Confirm the exact Gemini model id matches what you ran — header
 3. Section 4, bullet 1 — any other build problems you hit
 4. Section 4, bullet 4 — your 20-title failure log
 5. Confirm the team list is correct
