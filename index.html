@@ -322,8 +322,21 @@ const TITLES = [
 /* Gemini. Copy the exact model id from the picker in Google AI Studio
    (aistudio.google.com) -- a wrong id returns HTTP 404 saying so.
    Flash is the fast, cheap tier and is plenty for rewriting short titles. */
-const MODEL = "gemini-3.1-pro-preview";
-const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/";
+const MODEL = "gemini-3.6-flash";
+/* Gemini 3.x thinks before it answers, at "medium" unless told otherwise, and
+   those thinking tokens are drawn from the same maxOutputTokens budget as the
+   reply. Rewriting short titles needs no deliberation, so we ask for "low":
+   faster, and it stops a long think from eating the budget and returning an
+   empty candidate with finishReason MAX_TOKENS.
+   "low" | "medium" | "high", or null to omit the field entirely. */
+const THINKING_LEVEL = "low";
+/* Set USE_PROXY = true ONLY if the direct call is blocked by CORS even when
+   the page is served from http://localhost. Then run: python3 serve.py
+   The page calls that local server instead, and it calls Google for you. */
+const USE_PROXY = false;
+const API_URL = USE_PROXY
+  ? "/v1beta/models/"
+  : "https://generativelanguage.googleapis.com/v1beta/models/";
 
 /* ---------------------------------------------------------------- fake feed
    Channel names and view counts are decoration only. They are never counted,
@@ -361,7 +374,15 @@ function makeCard(title, own){
 }
 
 /* -------------------------------------------------------------- model calls */
-async function callModel(system, user, maxTokens, wantJson){
+async function callModel(system, user, maxTokens, wantJson, noThinking){
+  const generationConfig = Object.assign(
+    { maxOutputTokens: maxTokens, temperature: 0.2 },
+    // Forces a JSON reply for the rewrite call. More reliable than asking
+    // for one in prose, and it replaces the assistant-prefill trick.
+    wantJson ? { responseMimeType: "application/json" } : {},
+    (THINKING_LEVEL && !noThinking) ? { thinkingConfig: { thinkingLevel: THINKING_LEVEL } } : {}
+  );
+
   const res = await fetch(API_URL + MODEL + ":generateContent", {
     method: "POST",
     headers: {
@@ -371,12 +392,7 @@ async function callModel(system, user, maxTokens, wantJson){
     body: JSON.stringify({
       system_instruction: { parts: [{ text: system }] },
       contents: [{ role: "user", parts: [{ text: user }] }],
-      generationConfig: Object.assign(
-        { maxOutputTokens: maxTokens, temperature: 0.2 },
-        // Forces a JSON reply for the rewrite call. More reliable than asking
-        // for one in prose, and it replaces the assistant-prefill trick.
-        wantJson ? { responseMimeType: "application/json" } : {}
-      )
+      generationConfig: generationConfig
     })
   });
 
@@ -384,6 +400,12 @@ async function callModel(system, user, maxTokens, wantJson){
     // Status and the API's own error text only. The key is never included here.
     let detail = "";
     try { const j = await res.json(); detail = (j && j.error && j.error.message) ? j.error.message : ""; } catch(e){}
+    // thinkingConfig is a tuning field, not the point of the request. If this
+    // model or API version rejects it, drop it and go again rather than
+    // failing the demo over it.
+    if(res.status === 400 && !noThinking && THINKING_LEVEL && /think/i.test(detail)){
+      return callModel(system, user, maxTokens, wantJson, true);
+    }
     throw new Error("HTTP " + res.status + (detail ? ": " + detail.slice(0,200) : ""));
   }
 
@@ -439,10 +461,15 @@ async function runBatch(originals, msgNode){
   try{
     for(let attempt = 0; attempt < 2 && !result; attempt++){
       try{
+        // ~250 tokens per title covers the rewrite, the tactic and the score
+        // with room to spare. The retry doubles it, so a batch that ran out of
+        // budget the first time gets a genuinely different second chance
+        // instead of failing the same way twice.
+        const budget = Math.min(16000, 1200 + 250 * originals.length) * (attempt + 1);
         const raw = await callModel(
           PROMPT_DEBAIT,
           buildDebaitUser(originals, attempt > 0),
-          Math.min(4000, 600 + 200 * originals.length),
+          budget,
           true
         );
         result = validate(parseArray(raw), originals.length);
@@ -695,7 +722,16 @@ function showTip(target){
 function hideTip(){ tip.hidden = true; }
 
 /* ------------------------------------------------------------------- wiring */
-$("key").addEventListener("input", e => { state.apiKey = e.target.value.trim(); });
+/* Header values must be ISO-8859-1. A key copied out of a chat window or a
+   document can carry smart quotes, an en-dash or a zero-width space, and fetch
+   then throws "String contains non ISO-8859-1 code point" before the request is
+   even sent. Strip anything that is not a plain printable ASCII character. */
+$("key").addEventListener("input", e => {
+  const raw = e.target.value;
+  const clean = raw.replace(/[^\x21-\x7E]/g, "");
+  if(clean !== raw) e.target.value = clean;      // show the user what is actually being sent
+  state.apiKey = clean;
+});
 $("toggle").addEventListener("click", () => setMode(state.mode === "boring" ? "bait" : "boring"));
 $("runOwn").addEventListener("click", runOwn);
 $("runReflect").addEventListener("click", runReflect);
